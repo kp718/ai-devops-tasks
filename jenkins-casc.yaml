@@ -1,0 +1,152 @@
+
+jenkins:
+  systemMessage: "Jenkins skonfigurowany automatycznie przy użyciu JCasC"
+
+  # Podstawowe ustawienia
+  numExecutors: 2
+  mode: NORMAL
+  quietPeriod: 5
+  scmCheckoutRetryCount: 3
+
+  # Timeout dla zadań
+  globalNodeProperties: []
+
+  # Konfiguracja bezpieczeństwa
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USER}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+  # Konfiguracja narzędzi globalnych
+  tools:
+    maven:
+      installations:
+        - name: "Maven-3.9"
+          home: "/opt/maven"
+
+    nodejs:
+      installations:
+        - name: "NodeJS-20"
+          home: "/opt/nodejs"
+
+    dockerTool:
+      installations:
+        - name: "Docker"
+          home: "/usr/bin/docker"
+
+# Konfiguracja globalna
+unclassified:
+  location:
+    url: "http://jenkins.example.com/"
+    adminAddress: "admin@example.com"
+
+  # Globalne ustawienia czasu
+  globalBuildDiscarder:
+    discarder:
+      logRotator:
+        daysToKeep: 30
+        numToKeep: 20
+        artifactDaysToKeep: 7
+        artifactNumToKeep: 5
+
+# Konfiguracja pluginów
+# Pluginy należy zainstalować przed załadowaniem JCasC.
+# Wymagane pluginy:
+# - configuration-as-code
+# - workflow-aggregator
+# - git
+# - credentials
+# - ssh-credentials
+# - matrix-auth
+# - timestamper
+# - ws-cleanup
+# - pipeline-stage-view
+# - maven-plugin
+# - nodejs
+# - docker-workflow
+
+# Przykładowe zadanie Pipeline
+jobs:
+  - script: >
+      pipelineJob('example-pipeline') {
+        description('Przykładowy pipeline skonfigurowany przez JCasC')
+
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+
+                tools {
+                  maven 'Maven-3.9'
+                  nodejs 'NodeJS-20'
+                }
+
+                options {
+                  timeout(time: 30, unit: 'MINUTES')
+                  buildDiscarder(logRotator(
+                    numToKeepStr: '10'
+                  ))
+                  timestamps()
+                }
+
+                stages {
+                  stage('Checkout') {
+                    steps {
+                      git branch: 'main',
+                          url: 'https://github.com/example/project.git'
+                    }
+                  }
+
+                  stage('Build') {
+                    steps {
+                      sh 'mvn clean package'
+                    }
+                  }
+
+                  stage('Test') {
+                    steps {
+                      sh 'mvn test'
+                    }
+                  }
+
+                  stage('Node.js Build') {
+                    steps {
+                      sh 'npm install'
+                      sh 'npm run build'
+                    }
+                  }
+
+                  stage('Docker Build') {
+                    steps {
+                      sh 'docker build -t example-app:latest .'
+                    }
+                  }
+                }
+
+                post {
+                  success {
+                    echo 'Pipeline zakończony sukcesem!'
+                  }
+
+                  failure {
+                    echo 'Pipeline zakończony błędem!'
+                  }
+
+                  always {
+                    cleanWs()
+                  }
+                }
+              }
+            ''')
+
+            sandbox()
+          }
+        }
+      }
