@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'npm install'
+                sh 'npm run build'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'docker build -t myapp:latest .'
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login \
+                            -u "$DOCKER_USER" --password-stdin
+
+                        docker tag myapp:latest \
+                            "$DOCKER_USER/myapp:latest"
+
+                        docker push "$DOCKER_USER/myapp:latest"
+
+                        docker logout
+                    '''
+                }
+            }
+        }
+    }
+}
